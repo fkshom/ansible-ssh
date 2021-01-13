@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 ansiblessh::memoize() {
     PROG="$(basename $0)"
     DIR="${HOME}/.cache/${PROG}"
@@ -15,8 +17,13 @@ ansiblessh::memoize() {
 }
  
 ansiblessh::source::ansible-inventory-command() {
+  if ! type jq >/dev/null 2>&1; then
+      echo "jq command does not installed."
+      exit 1
+  fi
   declare -a CANDIDATE=(${INVENTORIES:-inventory hosts})
-  local inventories=$(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null | xargs -n1 -I{} echo "-i {}" | xargs echo)
+  #local inventories=$(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null | xargs -n1 -I{} echo "-i {}" | xargs echo)
+  local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'")
   ansible-inventory $inventories --list \
   | jq -r '
     ._meta.hostvars as $hostvars
@@ -47,7 +54,8 @@ ansiblessh::source::ansible-inventory-command() {
 
 ansiblessh::source::inventory() {
   declare -a CANDIDATE=(${INVENTORIES:-inventory hosts})
-  local inventories=($(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null))
+  #local inventories=($(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null))
+  local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'")
   cat "${inventories[@]}" | fgrep -v "["
 }
 
@@ -139,7 +147,7 @@ ansiblessh::builder::build_ssh_cmd() {
     echo "$cmd"
 }
 
-ansiblessh::interactiveprompt() {
+ansiblessh::common::interactiveprompt() {
   local l="$1"
   if [[ `readlink /proc/$$/exe` == *bash ]]; then
     READLINE_LINE="$l"
@@ -153,36 +161,40 @@ ansiblessh::interactiveprompt() {
 
 ansiblessh::action::interactiveprompt() {
   local str=$(cat)
-  ansiblessh::interactiveprompt "$str"
+  ansiblessh::common::interactiveprompt "$str"
 }
 
 ansiblessh::action::execute() {
   local cmd=$(cat)
   echo "$cmd" "$@"
+  eval $cmd "$@"
 }
 
-ansiblessh::zsh() {
-    ansiblessh::source::inventory \
-      | ansiblessh::selector::auto \
-      | ansiblessh::builder::build_ssh_cmd \
-      | ansiblessh::action::interactiveprompt
+ansiblessh::action::echo() {
+  local cmd=$(cat)
+  echo "$cmd" "$@"
 }
-ansiblessh::bash::ansible-inventory-command() {
+
+ansiblessh::run::load-by-ansible-inventory-command() {
     cmd=$(
       ansiblessh::source::ansible-inventory-command \
         | ansiblessh::selector::auto \
         | ansiblessh::builder::build_ssh_cmd \
     )    
-    ansiblessh::interactiveprompt "$cmd"
+    ansiblessh::common::interactiveprompt "$cmd"
 }
 
-ansiblessh::bash() {
+ansiblessh::run::load-by-ini-type-inventory() {
     cmd=$(
       ansiblessh::source::inventory \
         | ansiblessh::selector::auto \
         | ansiblessh::builder::build_ssh_cmd \
     )    
-    ansiblessh::interactiveprompt "$cmd"
+    ansiblessh::common::interactiveprompt "$cmd"
+}
+
+ansiblessh::run::interactive() {
+    ansiblessh::run::load-by-ini-type-inventory "$@"
 }
 
 ansiblessh::run() {
@@ -227,14 +239,15 @@ fi
 if [ $sourced -eq 0 ]; then
   ansiblessh::run "$@"
 else
-  if [[ `readlink /proc/$$/exe` == *bash ]]; then
-    bind -x '"\C-x\C-s": ansiblessh::bash'
-    bind -x '"\C-x\C-x": ansiblessh::bash::ansible-inventory-command'
-  fi
-  if [[ `readlink /proc/$$/exe` == *zsh ]]; then
-    zle -N ansiblessh::zsh
-    bindkey '^x^s' ansiblessh::zsh
-  fi
+#  if [[ `readlink /proc/$$/exe` == *bash ]]; then
+#    bind -x '"\C-x\C-s": ansiblessh::run::interactive'
+#    bind -x '"\C-x\C-x": ansiblessh::run::ansible-inventory-command'
+#  fi
+#  if [[ `readlink /proc/$$/exe` == *zsh ]]; then
+#    zle -N ansiblessh::zsh
+#    bindkey '^x^s' ansiblessh::zsh
+#  fi
+  :
 fi
 
 
