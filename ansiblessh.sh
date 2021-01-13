@@ -21,7 +21,7 @@ ansiblessh::source::ansible-inventory-command() {
       echo "jq command does not installed."
       exit 1
   fi
-  declare -a CANDIDATE=(${INVENTORIES:-inventory hosts})
+  declare -a CANDIDATE=(${INVENTORIES[@]:-inventory hosts})
   #local inventories=$(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null | xargs -n1 -I{} echo "-i {}" | xargs echo)
   local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'")
   ansible-inventory $inventories --list \
@@ -53,7 +53,7 @@ ansiblessh::source::ansible-inventory-command() {
 }
 
 ansiblessh::source::inventory() {
-  declare -a CANDIDATE=(${INVENTORIES:-inventory hosts})
+  declare -a CANDIDATE=(${INVENTORIES[@]:-inventory hosts})
   #local inventories=($(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null))
   local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'")
   cat "${inventories[@]}" | fgrep -v "["
@@ -115,12 +115,6 @@ ansiblessh::selector::auto() {
     filter="${selector_mode}"
   fi
   ansiblessh::selector::${filter} "$@"
-}
-
-abc() {
-  set -x
-  cat > /dev/null
-  echo 4
 }
 
 ansiblessh::builder::build_ssh_cmd() {
