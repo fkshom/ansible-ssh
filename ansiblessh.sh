@@ -23,7 +23,7 @@ ansiblessh::source::ansible-inventory-command() {
   fi
   declare -a CANDIDATE=(${INVENTORIES[@]:-inventory hosts})
   #local inventories=$(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null | xargs -n1 -I{} echo "-i {}" | xargs echo)
-  local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'")
+  local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'" | xargs -n1 -I{} echo "-i {}" | xargs echo)
   ansible-inventory $inventories --list \
   | jq -r '
     ._meta.hostvars as $hostvars
@@ -53,10 +53,11 @@ ansiblessh::source::ansible-inventory-command() {
 }
 
 ansiblessh::source::inventory() {
+  set -x
   declare -a CANDIDATE=(${INVENTORIES[@]:-inventory hosts})
   #local inventories=($(echo "${CANDIDATE[@]}" | xargs ls -d 2>/dev/null))
-  local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'")
-  cat "${inventories[@]}" | fgrep -v "["
+  local inventories=$(echo "${CANDIDATE[@]}" | xargs -n1 echo | xargs -n1 -I{} sh -c "test -f '{}' && echo '{}'" | xargs echo)
+  cat ${inventories[@]} | fgrep -v "["
 }
 
 ansiblessh::selector::fzf-tmux() {
@@ -188,10 +189,14 @@ ansiblessh::run::load-by-ini-type-inventory() {
 }
 
 ansiblessh::run::interactive() {
+  if [ $# -eq 1 ] && [ "$1" == "-a " ]; then
+    ansiblessh::run::load-by-ansible-inventory-command "$@"
+  else
     ansiblessh::run::load-by-ini-type-inventory "$@"
+  fi
 }
 
-ansiblessh::run() {
+ansiblessh::run::execute() {
   local selected_item
   if [ $# -eq 1 ]; then
     host=$1
@@ -231,16 +236,16 @@ else # All other shells: examine $0 for known shell binary filenames
 fi
 
 if [ $sourced -eq 0 ]; then
-  ansiblessh::run "$@"
+  ansiblessh::run::execute "$@"
 else
-#  if [[ `readlink /proc/$$/exe` == *bash ]]; then
-#    bind -x '"\C-x\C-s": ansiblessh::run::interactive'
-#    bind -x '"\C-x\C-x": ansiblessh::run::ansible-inventory-command'
-#  fi
-#  if [[ `readlink /proc/$$/exe` == *zsh ]]; then
-#    zle -N ansiblessh::zsh
-#    bindkey '^x^s' ansiblessh::zsh
-#  fi
+ if [[ `readlink /proc/$$/exe` == *bash ]]; then
+   bind -x '"\C-x\C-s": ansiblessh::run::interactive -a'
+   bind -x '"\C-x\C-x": ansiblessh::run::ansible-inventory-command'
+ fi
+ if [[ `readlink /proc/$$/exe` == *zsh ]]; then
+   zle -N ansiblessh::zsh
+   bindkey '^x^s' ansiblessh::zsh
+ fi
   :
 fi
 
