@@ -217,9 +217,13 @@ ansiblessh::run::execute() {
     )
   fi
 
-  echo "${selected_item}" | tee /dev/stderr \
+  command=$(
+    echo "${selected_item}" | tee /dev/stderr \
     | ansiblessh::builder::build_ssh_cmd \
-    | ansiblessh::action::execute "$@"
+    | ansiblessh::action::echo
+    )
+  echo "${command}"
+  eval "${command}"
 }
 
 # https://stackoverflow.com/a/28776166
@@ -243,8 +247,8 @@ else
    bind -x '"\C-x\C-x": ansiblessh::run::ansible-inventory-command'
  fi
  if [[ `readlink /proc/$$/exe` == *zsh ]]; then
-   zle -N ansiblessh::zsh
-   bindkey '^x^s' ansiblessh::zsh
+   zle -N ansiblessh::run::interactive
+   bindkey '^x^s' ansiblessh::run::interactive
  fi
   :
 fi
